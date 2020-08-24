@@ -241,7 +241,7 @@ def transform_raw_data(msg, lang, function_type, cube):
     return msg
 
 
-def detect_data_language(data):
+def detect_data_language(data, data_type="subdialogs"):
     key_letters = {
         "ua": {
             "є": 0, "і": 0, "ї": 0, "б": 0, "д": 0, "г": 0, "п": 0, "ц": 0, "я": 0, "ю": 0,
@@ -257,14 +257,18 @@ def detect_data_language(data):
         }
     }
     dialog_step_msgs = []
-    if data.index[-1] < 149:
+    n_msgs_to_analyse = 150
+    if data_type == "subdialogs":
+        n_msgs_to_analyse = 30
+
+    if data.index[-1] < n_msgs_to_analyse - 1:
         msgs_step = 1
 
     else:
         # in such way with msgs_step I can get 150 messages
         # which are at the different parts of the dialog, so
         # when I analyse there 150 msgs I can get a real language
-        msgs_step = data.index[-1] // 150
+        msgs_step = data.index[-1] // n_msgs_to_analyse
 
     for i in range(0, data.index[-1], msgs_step):
         dialog_step_msgs.append(data['message'][i])
@@ -297,7 +301,7 @@ def detect_data_language(data):
 
 
 def prepare_dialogs(lang, cube,  dialog_id, prep_path, dialog_path, start_date, end_date,
-                    function_type=""):
+                    function_type="", option=""):
     """
     Reads raw csv data and creates prepared copy
     at prep_path
@@ -313,24 +317,28 @@ def prepare_dialogs(lang, cube,  dialog_id, prep_path, dialog_path, start_date, 
         date_time = data["date"][i][:-6]
         dialog_datetime = datetime.datetime.strptime(date_time, "%Y-%m-%d %H:%M:%S")
 
-        if dialog_datetime <= start_date:
-            break
+        # if dialog_datetime <= start_date:
+        #     break
 
-        # msg = data.loc[i, 'message']
+        msg = data.loc[i, 'message']
 
         if start_date < dialog_datetime < end_date:
             if not pd.isnull(data.loc[i, 'message']):
-                data.at[i, 'message'] = transform_raw_data(data.loc[i, 'message'], lang, function_type, cube)
+                msg = transform_raw_data(msg, lang, function_type, cube)
+                # data.at[i, 'message'] = transform_raw_data(data.loc[i, 'message'], lang, function_type, cube)
                 print("INDEX", i)
 
-        # preprocessed_text_lst.append(msg)
+        preprocessed_text_lst.append(msg)
 
-    # data["preprocessed_message"] = preprocessed_text_lst
+    if option == "add_lang_column":
+        data["dialog_language"] = lang
+
+    data["preprocessed_message"] = preprocessed_text_lst
     data.to_csv(f'{prep_path}{dialog_id}.csv')
     logging.warning("saved dialog!")
 
 
-def prepare_dialogs_sorted_by_lang(dialog_ids, dialog_path, prepared_path, start_date, end_date):
+def prepare_dialogs_sorted_by_lang(dialog_ids, dialog_path, prepared_path, start_date, end_date, additional_option):
     dialog_ids_sorted_by_lang = {
         "ua": [],
         "ru": [],
@@ -369,7 +377,7 @@ def prepare_dialogs_sorted_by_lang(dialog_ids, dialog_path, prepared_path, start
             n_dialog += 1
             print(f"\n=======Language {lang} -- {n_dialog} from {n_all_dialogs}=======")
             prepare_dialogs(lang, cube, dialog_id, prepared_path, dialog_path, start_date,
-                            end_date, "words_frequency")
+                            end_date, "words_frequency", additional_option)
 
 
 if __name__ == "__main__":
